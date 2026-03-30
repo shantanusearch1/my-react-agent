@@ -13,30 +13,62 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 app.get('/', (req, res) => {
   res.send(`
     <html>
-      <head><script src="https://cdn.tailwindcss.com"></script><title>React Agent</title></head>
+      <head>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <title>React Agent</title>
+      </head>
       <body class="bg-slate-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
-        <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
+        <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 text-center">
           <h1 class="text-3xl font-bold mb-6 text-blue-400">Fixed URL React Agent 🤖</h1>
-          <input id="prompt" type="text" class="w-full p-4 rounded-lg bg-slate-900 border border-slate-600 mb-4" placeholder="Describe your site...">
-          <button onclick="build()" id="btn" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold">Build Website</button>
-          <div id="status" class="mt-8 hidden text-center">
-            <p id="status-text" class="text-blue-300 animate-pulse">Building in the cloud...</p>
-            <a id="link" href="#" target="_blank" class="mt-4 block text-blue-400 underline font-bold text-lg hidden">View My Fixed URL Site 🚀</a>
+          <input id="prompt" type="text" class="w-full p-4 rounded-lg bg-slate-900 border border-slate-600 mb-4 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Describe your site...">
+          <button onclick="build()" id="btn" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold transition-all disabled:opacity-50">Build Website</button>
+          
+          <div id="status-container" class="mt-8 hidden">
+            <p id="status-text" class="text-blue-300 animate-pulse font-mono text-sm">Waiting for agent...</p>
+            <div id="link-container" class="mt-4 hidden">
+               <a id="link" href="#" target="_blank" class="block bg-green-600/20 border border-green-500 text-green-400 p-4 rounded-lg font-bold hover:bg-green-600/30 transition">
+                 View Live Site 🚀
+               </a>
+               <p class="text-slate-500 text-xs mt-2 italic">Note: If you get a 'Blocked' error, wait 5 seconds and refresh.</p>
+            </div>
           </div>
         </div>
+
         <script>
           async function build() {
-            const prompt = document.getElementById('prompt').value;
+            const promptInput = document.getElementById('prompt');
             const btn = document.getElementById('btn');
-            const status = document.getElementById('status');
+            const statusContainer = document.getElementById('status-container');
+            const statusText = document.getElementById('status-text');
+            const linkContainer = document.getElementById('link-container');
             const link = document.getElementById('link');
+
+            if (!promptInput.value) return alert("Please enter a prompt!");
+
+            // Reset UI
             btn.disabled = true;
-            status.classList.remove('hidden');
-            const response = await fetch('/build?prompt=' + encodeURIComponent(prompt));
-            const data = await response.json();
-            link.href = data.preview_url;
-            link.classList.remove('hidden');
-            btn.disabled = false;
+            btn.innerText = "Processing...";
+            statusContainer.classList.remove('hidden');
+            linkContainer.classList.add('hidden');
+            statusText.innerText = "Agent is thinking (Gemini Flash)...";
+
+            try {
+              const response = await fetch('/build?prompt=' + encodeURIComponent(promptInput.value));
+              const data = await response.json();
+
+              if (data.preview_url) {
+                statusText.innerText = "Build Complete!";
+                link.href = data.preview_url;
+                linkContainer.classList.remove('hidden');
+              } else {
+                statusText.innerText = "Error: " + (data.error || "Unknown error");
+              }
+            } catch (err) {
+              statusText.innerText = "Connection failed. Check Railway logs.";
+            } finally {
+              btn.disabled = false;
+              btn.innerText = "Build Website";
+            }
           }
         </script>
       </body>
