@@ -74,14 +74,40 @@ app.get('/', (req, res) => {
 
 app.get('/build', async (req, res) => {
   const userPrompt = req.query.prompt;
-  
   try {
-    console.log("--- Starting Build ---");
-    const savedId = process.env.PERSISTENT_SANDBOX_ID;
-    const sandbox = (savedId && savedId !== 'none' && savedId !== '') 
-      ? await Sandbox.connect(savedId) 
-      : await Sandbox.create();
+    const sandbox = await Sandbox.create();
+    
+    // Setup Vite Config with ALL necessary fixes
+    await sandbox.commands.run('mkdir -p my-app');
+    await sandbox.files.write('my-app/vite.config.js', `
+      import { defineConfig } from 'vite';
+      import react from '@vitejs/plugin-react';
+      export default defineConfig({
+        plugins: [react()],
+        server: { host: '0.0.0.0', port: 5173, strictPort: true, allowedHosts: true }
+      });
+    `);
 
+    // Generate Code
+    const result = await model.generateContent("Return raw React code for App.jsx using Tailwind: " + userPrompt);
+    const code = result.response.text().replace(/```jsx|```javascript|```/g, "").trim();
+    await sandbox.files.write('my-app/src/App.jsx', code);
+
+    // Background Process: Install and Run
+    // We use 'nohup' and '&' to ensure it survives even if the request ends
+    console.log("Launching background build...");
+    sandbox.commands.run('cd my-app && (ls package.json || npm create vite@latest . -- --template react) && npm install && npm run dev -- --host', { background: true });
+
+    const previewUrl = sandbox.getHost(5173);
+    res.json({ 
+      status: "Success", 
+      preview_url: `https://${previewUrl}`
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
     // 1. Write Vite Config Immediately
     await sandbox.commands.run('mkdir -p my-app');
     const viteConfig = `
