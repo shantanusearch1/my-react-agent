@@ -8,7 +8,7 @@ const port = process.env.PORT || 3000;
 
 // Initialize Gemini with your key from Railway Variables
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
 app.get('/', (req, res) => res.send('React AI Agent (Gemini Edition) is Online. Use /build?prompt=your_idea'));
 
