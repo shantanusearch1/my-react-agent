@@ -66,14 +66,45 @@ app.get('/', (req, res) => {
 });
 app.get('/build', async (req, res) => {
   const userPrompt = req.query.prompt;
-  if (!userPrompt) return res.send("Please provide a prompt. Example: /build?prompt=a blue landing page");
+  let sandbox;
 
   try {
-    console.log(`Starting Gemini Build for: ${userPrompt}`);
+    // 1. Try to reconnect to an existing sandbox
+    const savedId = process.env.PERSISTENT_SANDBOX_ID;
     
-    // 1. Create the Cloud Sandbox
-    const sandbox = await Sandbox.create();
+    if (savedId && savedId !== 'none') {
+      console.log(`Reconnecting to existing sandbox: ${savedId}`);
+      sandbox = await Sandbox.connect(savedId);
+    } else {
+      console.log("Creating a brand new persistent sandbox...");
+      sandbox = await Sandbox.create({
+        // This keeps the sandbox alive for 24 hours (Pro) or 1 hour (Free)
+        timeoutMs: 3600000 
+      });
+      // IMPORTANT: In a real app, you'd save this ID to a database.
+      // For now, we'll log it so you can add it to your Railway Variables.
+      console.log(`NEW SANDBOX ID: ${sandbox.sandboxId}`);
+    }
 
+    // 2. Clear old files & Re-scaffold if it's the first time
+    // If the folder doesn't exist, create it
+    await sandbox.commands.run('mkdir -p my-app');
+    
+    // ... [Insert your existing Vite Scaffolding & Gemini code here] ...
+
+    // 3. Get the URL (This will now be consistent for this Sandbox ID)
+    const previewUrl = sandbox.getHost(5173);
+    
+    res.json({
+      status: "Success",
+      preview_url: `https://${previewUrl}`,
+      sandbox_id: sandbox.sandboxId // Save this!
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
     // 2. Setup React (Vite)
     await sandbox.commands.run('npm create vite@latest my-app -- --template react');
     await sandbox.commands.run('cd my-app && npm install');
