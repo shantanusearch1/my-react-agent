@@ -10,8 +10,60 @@ const port = process.env.PORT || 3000;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-app.get('/', (req, res) => res.send('React AI Agent (Gemini Edition) is Online. Use /build?prompt=your_idea'));
+//app.get('/', (req, res) => res.send('React AI Agent (Gemini Edition) is Online. Use /build?prompt=your_idea'));
+app.get('/', (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <title>React AI Agent</title>
+      </head>
+      <body class="bg-slate-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+        <div class="max-w-2xl w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
+          <h1 class="text-3xl font-bold mb-6 text-blue-400">React AI Agent 🤖</h1>
+          <p class="mb-4 text-slate-400">Describe the website you want to build:</p>
+          <input id="prompt" type="text" class="w-full p-4 rounded-lg bg-slate-900 border border-slate-600 mb-4 focus:outline-none focus:border-blue-500" placeholder="e.g. A crypto dashboard with dark mode...">
+          <button onclick="build()" id="btn" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold transition">Build My Website</button>
+          
+          <div id="status" class="mt-8 hidden">
+            <div class="flex items-center space-x-3 mb-4">
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <p id="status-text" class="text-blue-300 font-mono text-sm">Initializing Cloud Sandbox...</p>
+            </div>
+            <div id="result" class="p-4 bg-slate-900 rounded border border-blue-900/50 hidden">
+              <p class="text-sm text-slate-400 mb-2">Build Complete!</p>
+              <a id="link" href="#" target="_blank" class="text-blue-400 underline font-bold text-lg italic">Click here to view your site 🚀</a>
+            </div>
+          </div>
+        </div>
 
+        <script>
+          async function build() {
+            const prompt = document.getElementById('prompt').value;
+            const btn = document.getElementById('btn');
+            const status = document.getElementById('status');
+            const statusText = document.getElementById('status-text');
+            const result = document.getElementById('result');
+
+            btn.disabled = true;
+            btn.innerText = "Working...";
+            status.classList.remove('hidden');
+            
+            // Start the build
+            const response = await fetch('/build?prompt=' + encodeURIComponent(prompt));
+            const data = await response.json();
+            
+            statusText.innerText = "Deployment successful!";
+            result.classList.remove('hidden');
+            document.getElementById('link').href = data.preview_url;
+            btn.disabled = false;
+            btn.innerText = "Build Another";
+          }
+        </script>
+      </body>
+    </html>
+  `);
+});
 app.get('/build', async (req, res) => {
   const userPrompt = req.query.prompt;
   if (!userPrompt) return res.send("Please provide a prompt. Example: /build?prompt=a blue landing page");
