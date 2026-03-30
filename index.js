@@ -26,6 +26,22 @@ app.get('/build', async (req, res) => {
     await sandbox.commands.run('npm create vite@latest my-app -- --template react');
     await sandbox.commands.run('cd my-app && npm install');
 
+// ADD THIS NEW STEP:
+console.log("Configuring Vite to allow cloud hosts...");
+const viteConfig = `
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    allowedHosts: true, // This allows the E2B proxy to work
+    host: true,         // Exposes the server to the network
+  }
+})
+`;
+await sandbox.files.write('my-app/vite.config.js', viteConfig);
+
     // 3. Ask Gemini to write the React Code
     const promptText = `You are a Senior React Developer. 
     Task: Build a single-file React component (App.jsx) based on this request: "${userPrompt}".
