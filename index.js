@@ -7,9 +7,10 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Using 3.1 Flash Lite for higher free-tier quotas in 2026
 const model = genAI.getGenerativeModel({ 
-  model: "gemini-2.5-flash",
-  systemInstruction: "You are a Universal AI Assistant. If asked for code/apps, build them in React. If asked general questions, answer directly. For databases, use JSON files in the sandbox."
+  model: "gemini-3.1-flash-lite-preview",
+  systemInstruction: "You are a Universal Assistant. If a user wants a UI/App/Code, start your response with 'CODE_MODE:' then provide the React App.jsx code using Tailwind. Otherwise, just provide a text answer."
 });
 
 app.get('/', (req, res) => {
@@ -20,10 +21,10 @@ app.get('/', (req, res) => {
         <div class="max-w-3xl w-full bg-slate-800 rounded-3xl shadow-2xl border border-slate-700 p-8">
           <h1 class="text-3xl font-black mb-6 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">AI Assistant 🤖</h1>
           <div id="chat" class="space-y-4 mb-6 max-h-[400px] overflow-y-auto p-4 bg-slate-900/50 rounded-xl border border-slate-700/50 font-mono text-sm">
-            <div class="text-blue-400 italic font-bold">> System Ready. Ask me anything.</div>
+            <div class="text-blue-400 italic font-bold">> System Ready (Quota Optimized).</div>
           </div>
           <div class="flex gap-2">
-            <input id="prompt" type="text" class="flex-1 p-4 rounded-xl bg-slate-900 border border-slate-600 focus:border-blue-500 outline-none transition-all" placeholder="Build a todo app... or ask a question...">
+            <input id="prompt" type="text" class="flex-1 p-4 rounded-xl bg-slate-900 border border-slate-600 focus:border-blue-500 outline-none transition-all" placeholder="Ask a question or build an app...">
             <button onclick="ask()" id="btn" class="bg-blue-600 hover:bg-blue-500 px-8 rounded-xl font-bold transition-all disabled:opacity-50">Send</button>
           </div>
         </div>
@@ -41,10 +42,10 @@ app.get('/', (req, res) => {
               const data = await res.json();
               chat.innerHTML += '<div class="text-emerald-400 mt-2 bg-emerald-900/10 p-3 rounded border border-emerald-900/30 font-bold">> Assistant: ' + data.answer + '</div>';
               if(data.preview_url) {
-                chat.innerHTML += '<div class="mt-2 pl-4"><a href="' + data.preview_url + '" target="_blank" class="text-blue-400 underline animate-pulse">View Generated Application 🚀</a><br><span class="text-[10px] text-slate-500 italic">(Wait 30s for npm install then refresh if it says Closed Port)</span></div>';
+                chat.innerHTML += '<div class="mt-2 pl-4"><a href="' + data.preview_url + '" target="_blank" class="text-blue-400 underline animate-pulse">View Generated App 🚀</a></div>';
               }
             } catch(e) {
-              chat.innerHTML += '<div class="text-red-400 mt-2 italic font-bold">> Error: Request timed out. Check Railway logs.</div>';
+              chat.innerHTML += '<div class="text-red-400 mt-2 italic font-bold">> Error: Quota exceeded or Timeout.</div>';
             }
             chat.scrollTop = chat.scrollHeight; btn.disabled = false;
           }
@@ -57,35 +58,31 @@ app.get('/', (req, res) => {
 app.get('/chat', async (req, res) => {
   const prompt = req.query.prompt;
   try {
-    // Determine Intent: Simple check for "build", "create", or code-like prompts
-    const decision = await model.generateContent("Respond with ONLY the word 'CODE' if this prompt asks for a website/app/ui/coding task. Otherwise respond 'TEXT'. Prompt: " + prompt);
-    const intent = decision.response.text().trim().toUpperCase();
+    // SINGLE CALL: Get intent and content at once
+    const result = await model.generateContent(prompt);
+    const fullText = result.response.text();
 
-    if (intent.includes("CODE")) {
+    if (fullText.includes("CODE_MODE:")) {
       const sandbox = await Sandbox.create();
+      const code = fullText.split("CODE_MODE:")[1].replace(/```jsx|```javascript|```/g, "").trim();
+      
       await sandbox.commands.run('mkdir -p my-app');
-      
-      // Force Vite Config
       await sandbox.files.write('my-app/vite.config.js', "import { defineConfig } from 'vite'; import react from '@vitejs/plugin-react'; export default defineConfig({ plugins: [react()], server: { host: '0.0.0.0', port: 5173, strictPort: true, allowedHosts: true } });");
-      
-      const aiResponse = await model.generateContent("Return raw React code for App.jsx using Tailwind: " + prompt);
-      const code = aiResponse.response.text().replace(/```jsx|```javascript|```/g, "").trim();
       await sandbox.files.write('my-app/src/App.jsx', code);
       
-      // Start background build
       sandbox.commands.run("cd my-app && (ls package.json || npm create vite@latest . -- --template react) && npm install && npm run dev -- --host", { background: true });
-      
+
       res.json({ 
-        answer: "I've started building that React application in a new cloud sandbox for you.", 
+        answer: "Coding mode detected. I'm building your React interface now!", 
         preview_url: "https://" + sandbox.getHost(5173) 
       });
     } else {
-      const result = await model.generateContent(prompt);
-      res.json({ answer: result.response.text() });
+      res.json({ answer: fullText });
     }
   } catch (error) {
-    res.status(500).json({ answer: error.message });
+    console.error(error);
+    res.status(500).json({ answer: "My brain is a bit tired (Quota Limit). Try again in a few minutes!" });
   }
 });
 
-app.listen(port, () => console.log("Universal Assistant Online"));
+app.listen(port, () => console.log("Optimized Assistant Active"));
